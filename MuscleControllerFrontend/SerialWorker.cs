@@ -5,11 +5,10 @@ using System.Threading;
 
 namespace MuscleControllerFrontend {
     public enum Serialstate {
-        Closed,
-        Single,
-        Continuous
+        Closed, //serial is not connected
+        Single, //single shot mode
+        Continuous  //continuous mode
     };
-
 
     public class DataRecord {
         public byte timestamp;
@@ -110,9 +109,7 @@ namespace MuscleControllerFrontend {
                 }
             }
         }
-        public void SetCount(int count) {
-            trigcount = count;
-        }
+        public void SetCount(int count) => trigcount = count;
         public void Kill() => running = false;
         private volatile int trigcount;
         private volatile bool running;

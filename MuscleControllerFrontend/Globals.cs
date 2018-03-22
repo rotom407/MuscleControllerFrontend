@@ -84,6 +84,7 @@ namespace MuscleControllerFrontend {
         //feed the filters with data input
         public void Feed(double input) {
             if (Reset) {
+                //reset filter memory
                 Trend.output = input;
                 Denoise.output = input;
                 Tilt.output = input;

@@ -183,9 +183,9 @@ namespace MuscleControllerFrontend {
                 Globals.dbuf.buf.Clear();
             }
             Vector3D nowvec = new Vector3D(Globals.lastrec.data[0], Globals.lastrec.data[1], Globals.lastrec.data[2]);
-            nowvec.Scale(Globals.cursordat.Speed);
+            nowvec *= Globals.cursordat.Speed;
             Vector3D decompvec = nowvec.Decompose(Globals.cursordat.Xbase, Globals.cursordat.Ybase, Globals.cursordat.Zbase);
-            double tempxsp = decompvec.x, tempysp = decompvec.y;
+            double tempxsp = decompvec.X, tempysp = decompvec.Y;
             //double tempxsp = -Globals.lastrec.data[5] * Globals.cursordat.speed/3, tempysp = -Globals.lastrec.data[4] * Globals.cursordat.speed/3;
             double mode = Math.Sqrt(tempxsp * tempxsp + tempysp * tempysp);
             double deadzone = 2.5;
@@ -206,7 +206,7 @@ namespace MuscleControllerFrontend {
             int outx, outy;
             outx = (int)Math.Truncate(nowx - origx + Globals.cursordat.Xremaining);
             outy = (int)Math.Truncate(nowy - origy + Globals.cursordat.Yremaining);
-            UpdateXYspeed(decompvec.x, decompvec.y, outx, outy);
+            UpdateXYspeed(decompvec.X, decompvec.Y, outx, outy);
             Globals.cursordat.Xremaining = nowx - origx + Globals.cursordat.Xremaining - outx;
             Globals.cursordat.Yremaining = nowy - origy + Globals.cursordat.Yremaining - outy;
 
@@ -216,15 +216,15 @@ namespace MuscleControllerFrontend {
         }
 
         private void btnXYReset_Click(object sender, EventArgs e) {
-            Globals.cursordat.Xbase.x = 0.0;
-            Globals.cursordat.Xbase.y = -1.0;
-            Globals.cursordat.Xbase.z = 0.0;
-            Globals.cursordat.Ybase.x = 0.0;
-            Globals.cursordat.Ybase.y = 0.0;
-            Globals.cursordat.Ybase.z = 1.0;
-            Globals.cursordat.Zbase.x = -1.0;
-            Globals.cursordat.Zbase.y = 0.0;
-            Globals.cursordat.Zbase.z = 0.0;
+            Globals.cursordat.Xbase.X = 0.0;
+            Globals.cursordat.Xbase.Y = -1.0;
+            Globals.cursordat.Xbase.Z = 0.0;
+            Globals.cursordat.Ybase.X = 0.0;
+            Globals.cursordat.Ybase.Y = 0.0;
+            Globals.cursordat.Ybase.Z = 1.0;
+            Globals.cursordat.Zbase.X = -1.0;
+            Globals.cursordat.Zbase.Y = 0.0;
+            Globals.cursordat.Zbase.Z = 0.0;
             UpdatecursorXYZ();
         }
 
@@ -247,20 +247,20 @@ namespace MuscleControllerFrontend {
         }
 
         private void btnSetX_Click(object sender, EventArgs e) {
-            Globals.cursordat.Xbase.x = Globals.lastrec.data[0];
-            Globals.cursordat.Xbase.y = Globals.lastrec.data[1];
-            Globals.cursordat.Xbase.z = Globals.lastrec.data[2];
+            Globals.cursordat.Xbase.X = Globals.lastrec.data[0];
+            Globals.cursordat.Xbase.Y = Globals.lastrec.data[1];
+            Globals.cursordat.Xbase.Z = Globals.lastrec.data[2];
             Globals.cursordat.Xbase.Normalize();
-            Globals.cursordat.Zbase.Assign(Globals.cursordat.Xbase.Cross(Globals.cursordat.Ybase));
+            Globals.cursordat.Zbase=Globals.cursordat.Xbase.Cross(Globals.cursordat.Ybase);
             UpdatecursorXYZ();
         }
 
         private void btnSetY_Click(object sender, EventArgs e) {
-            Globals.cursordat.Ybase.x = Globals.lastrec.data[0];
-            Globals.cursordat.Ybase.y = Globals.lastrec.data[1];
-            Globals.cursordat.Ybase.z = Globals.lastrec.data[2];
+            Globals.cursordat.Ybase.X = Globals.lastrec.data[0];
+            Globals.cursordat.Ybase.Y = Globals.lastrec.data[1];
+            Globals.cursordat.Ybase.Z = Globals.lastrec.data[2];
             Globals.cursordat.Ybase.Normalize();
-            Globals.cursordat.Zbase.Assign(Globals.cursordat.Xbase.Cross(Globals.cursordat.Ybase));
+            Globals.cursordat.Zbase=Globals.cursordat.Xbase.Cross(Globals.cursordat.Ybase);
             UpdatecursorXYZ();
         }
 
