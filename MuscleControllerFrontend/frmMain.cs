@@ -130,7 +130,7 @@ namespace MuscleControllerFrontend {
                         int index = name == "AcX" ? 0 : (name == "AcY" ? 1 : 2);
                         Globals.chfilters[index].Feed(dat.data[index]);
                         cht1.Series[name].Points.SuspendUpdates();
-                        cht1.Series[name].Points.Add(Globals.chfilters[index].smooth);
+                        cht1.Series[name].Points.Add(Globals.chfilters[index].Smooth);
                         //cht1.Series[name].Points.Add(Globals.filters[index].denoise.output);
                         if (cht1.Series[name].Points.Count > 60)
                             cht1.Series[name].Points.RemoveAt(0);
@@ -170,7 +170,7 @@ namespace MuscleControllerFrontend {
                             Globals.filters[index].Feed(dat.data[index]);
                         }
                         for (int i = 0; i < 3; i++) {
-                            lastdat[i] = (short)Globals.filters[i].smooth;
+                            lastdat[i] = (short)Globals.filters[i].Smooth;
                         }
                         for (int i = 3; i < 10; i++) {
                             lastdat[i] = dat.data[i];
@@ -183,8 +183,8 @@ namespace MuscleControllerFrontend {
                 Globals.dbuf.buf.Clear();
             }
             Vector3D nowvec = new Vector3D(Globals.lastrec.data[0], Globals.lastrec.data[1], Globals.lastrec.data[2]);
-            nowvec.Scale(Globals.cursordat.speed);
-            Vector3D decompvec = nowvec.Decompose(Globals.cursordat.Xvec, Globals.cursordat.Yvec, Globals.cursordat.Zvec);
+            nowvec.Scale(Globals.cursordat.Speed);
+            Vector3D decompvec = nowvec.Decompose(Globals.cursordat.Xbase, Globals.cursordat.Ybase, Globals.cursordat.Zbase);
             double tempxsp = decompvec.x, tempysp = decompvec.y;
             //double tempxsp = -Globals.lastrec.data[5] * Globals.cursordat.speed/3, tempysp = -Globals.lastrec.data[4] * Globals.cursordat.speed/3;
             double mode = Math.Sqrt(tempxsp * tempxsp + tempysp * tempysp);
@@ -198,7 +198,7 @@ namespace MuscleControllerFrontend {
             Globals.cursordat.Xsp = tempxsp;
             Globals.cursordat.Ysp = tempysp;
             double origx = Globals.cursordat.X, origy = Globals.cursordat.Y;
-            Globals.cursordat.UpdateXY(-1, -1);
+            Globals.cursordat.UpdateXY();
             /*
             Globals.cursordat.X = 400 + 20*tempxsp;
             Globals.cursordat.Y = 300 + 20*tempysp;*/
@@ -211,20 +211,20 @@ namespace MuscleControllerFrontend {
             Globals.cursordat.Yremaining = nowy - origy + Globals.cursordat.Yremaining - outy;
 
             UpdateSimChart();
-            if (Globals.cursordat.apply)
+            if (Globals.cursordat.Active)
                 MoveCursor(outx, outy);
         }
 
         private void btnXYReset_Click(object sender, EventArgs e) {
-            Globals.cursordat.Xvec.x = 0.0;
-            Globals.cursordat.Xvec.y = -1.0;
-            Globals.cursordat.Xvec.z = 0.0;
-            Globals.cursordat.Yvec.x = 0.0;
-            Globals.cursordat.Yvec.y = 0.0;
-            Globals.cursordat.Yvec.z = 1.0;
-            Globals.cursordat.Zvec.x = -1.0;
-            Globals.cursordat.Zvec.y = 0.0;
-            Globals.cursordat.Zvec.z = 0.0;
+            Globals.cursordat.Xbase.x = 0.0;
+            Globals.cursordat.Xbase.y = -1.0;
+            Globals.cursordat.Xbase.z = 0.0;
+            Globals.cursordat.Ybase.x = 0.0;
+            Globals.cursordat.Ybase.y = 0.0;
+            Globals.cursordat.Ybase.z = 1.0;
+            Globals.cursordat.Zbase.x = -1.0;
+            Globals.cursordat.Zbase.y = 0.0;
+            Globals.cursordat.Zbase.z = 0.0;
             UpdatecursorXYZ();
         }
 
@@ -234,7 +234,7 @@ namespace MuscleControllerFrontend {
         }
 
         private void UpdatecursorXYZ() {
-            txtXYBasis.Text = "Xbase = " + Globals.cursordat.Xvec.ToString() + "\r\nYbase = " + Globals.cursordat.Yvec.ToString() + "\r\nZbase = " + Globals.cursordat.Zvec.ToString();
+            txtXYBasis.Text = "Xbase = " + Globals.cursordat.Xbase.ToString() + "\r\nYbase = " + Globals.cursordat.Ybase.ToString() + "\r\nZbase = " + Globals.cursordat.Zbase.ToString();
         }
 
         private void UpdateXYspeed(double xsp, double ysp, int outx, int outy) {
@@ -247,20 +247,20 @@ namespace MuscleControllerFrontend {
         }
 
         private void btnSetX_Click(object sender, EventArgs e) {
-            Globals.cursordat.Xvec.x = Globals.lastrec.data[0];
-            Globals.cursordat.Xvec.y = Globals.lastrec.data[1];
-            Globals.cursordat.Xvec.z = Globals.lastrec.data[2];
-            Globals.cursordat.Xvec.Normalize();
-            Globals.cursordat.Zvec.Assign(Globals.cursordat.Xvec.Cross(Globals.cursordat.Yvec));
+            Globals.cursordat.Xbase.x = Globals.lastrec.data[0];
+            Globals.cursordat.Xbase.y = Globals.lastrec.data[1];
+            Globals.cursordat.Xbase.z = Globals.lastrec.data[2];
+            Globals.cursordat.Xbase.Normalize();
+            Globals.cursordat.Zbase.Assign(Globals.cursordat.Xbase.Cross(Globals.cursordat.Ybase));
             UpdatecursorXYZ();
         }
 
         private void btnSetY_Click(object sender, EventArgs e) {
-            Globals.cursordat.Yvec.x = Globals.lastrec.data[0];
-            Globals.cursordat.Yvec.y = Globals.lastrec.data[1];
-            Globals.cursordat.Yvec.z = Globals.lastrec.data[2];
-            Globals.cursordat.Yvec.Normalize();
-            Globals.cursordat.Zvec.Assign(Globals.cursordat.Xvec.Cross(Globals.cursordat.Yvec));
+            Globals.cursordat.Ybase.x = Globals.lastrec.data[0];
+            Globals.cursordat.Ybase.y = Globals.lastrec.data[1];
+            Globals.cursordat.Ybase.z = Globals.lastrec.data[2];
+            Globals.cursordat.Ybase.Normalize();
+            Globals.cursordat.Zbase.Assign(Globals.cursordat.Xbase.Cross(Globals.cursordat.Ybase));
             UpdatecursorXYZ();
         }
 
@@ -269,7 +269,7 @@ namespace MuscleControllerFrontend {
         }
 
         private void chkApply_CheckedChanged(object sender, EventArgs e) {
-            Globals.cursordat.apply = chkApply.Checked;
+            Globals.cursordat.Active = chkApply.Checked;
         }
     }
 }
