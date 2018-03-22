@@ -4,8 +4,8 @@ namespace MuscleControllerFrontend {
     //static class storing global objects
     public static class Globals {
         public static Serialstate state = Serialstate.Closed;
-        public static Filters[] filters = new Filters[3];   //filters used for cursor movements
-        public static Filters[] chfilters = new Filters[3]; //filters used for charts
+        public static Filters[] filters = new Filters[3];   //3 filters (for AcX AcY AcZ) used for cursor movements
+        public static Filters[] chfilters = new Filters[3]; //3 filters (for AcX AcY AcZ) used for charts
         public static volatile byte timestamp = 0;
         public static volatile DataBuffer dbuf = new DataBuffer();  //data buffer used by serial worker
         public static SerialWorker sworker = new SerialWorker();

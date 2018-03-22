@@ -342,7 +342,6 @@
             this.txtXYBasis.Name = "txtXYBasis";
             this.txtXYBasis.Size = new System.Drawing.Size(239, 45);
             this.txtXYBasis.TabIndex = 16;
-            this.txtXYBasis.TextChanged += new System.EventHandler(this.txtXYBasis_TextChanged);
             // 
             // btnXYReset
             // 
