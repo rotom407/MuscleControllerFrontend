@@ -5,13 +5,13 @@ using System.Windows.Forms;
 using System.Threading;
 
 namespace MuscleControllerFrontend {
-    public partial class frmMain : Form {
-        public frmMain() {
+    public partial class FrmMain : Form {
+        public FrmMain() {
             InitializeComponent();
         }
 
         //when the form is loaded
-        private void frmMain_Load(object sender, EventArgs e) {
+        private void FrmMain_Load(object sender, EventArgs e) {
             Globals.sthread.Start();    //start the serial worker thread
             UpdateSerialState(Serialstate.Closed);    //set the serial state to closed
             UpdateCursorXYZbaseTextbox();
@@ -20,31 +20,32 @@ namespace MuscleControllerFrontend {
                 Globals.filters[i] = new Filters(0.995, 0.5, 0.7, 1000);
             }
             //set Y ranges of charts
-            cht1.ChartAreas[0].Axes[1].Maximum = 3000;
-            cht1.ChartAreas[0].Axes[1].Minimum = -3000;
-            cht2.ChartAreas[0].Axes[1].Maximum = 10000;
-            cht2.ChartAreas[0].Axes[1].Minimum = -10000;
-            cht3.ChartAreas[0].Axes[1].Maximum = 1000;
-            cht3.ChartAreas[0].Axes[1].Minimum = 0;
+            Cht1.ChartAreas[0].Axes[1].Maximum = 3000;
+            Cht1.ChartAreas[0].Axes[1].Minimum = -3000;
+            Cht2.ChartAreas[0].Axes[1].Maximum = 10000;
+            Cht2.ChartAreas[0].Axes[1].Minimum = -10000;
+            Cht3.ChartAreas[0].Axes[1].Maximum = 1000;
+            Cht3.ChartAreas[0].Axes[1].Minimum = 0;
         }
 
         //when the form is closed
-        private void frmMain_FormClosed(object sender, FormClosedEventArgs e) {
+        private void FrmMain_FormClosed(object sender, FormClosedEventArgs e) {
             Globals.sworker.Kill(); //kill the serial worker process
         }
 
         //when Open button is clicked
-        private void btnOpen_Click(object sender, EventArgs e) {
+        private void BtnOpen_Click(object sender, EventArgs e) {
             try {
-                Globals.sworker.SetPortOpened(true, txtPort.Text);  //tell the serial worker to open the serial port
-                btnOpen.Enabled = false;
+                Globals.sworker.SetPortOpened(true, TxtPort.Text);  //tell the serial worker to open the serial port
+                BtnOpen.Enabled = false;
                 tmrStart.Enabled = true;    //wait for some time before doing something next
             } catch {
                 MessageBox.Show("Error opening serial port.");
                 UpdateSerialState(Serialstate.Closed);
             }
         }
-        private void tmrStart_Tick(object sender, EventArgs e) {
+
+        private void TmrStart_Tick(object sender, EventArgs e) {
             UpdateSerialState(Serialstate.Single);  //enable the buttons
             tmrStart.Enabled = false;
         }
@@ -54,34 +55,34 @@ namespace MuscleControllerFrontend {
             Globals.state = state;
             switch (state) {
                 case Serialstate.Closed:
-                    btnClose.Enabled = false;
-                    btnOpen.Enabled = true;
-                    btnTrig.Enabled = false;
-                    btnStart.Enabled = false;
-                    btnStop.Enabled = false;
-                    grpCursor.Enabled = false;
+                    BtnClose.Enabled = false;
+                    BtnOpen.Enabled = true;
+                    BtnTrig.Enabled = false;
+                    BtnStart.Enabled = false;
+                    BtnStop.Enabled = false;
+                    GrpCursor.Enabled = false;
                     break;
                 case Serialstate.Single:
-                    btnClose.Enabled = true;
-                    btnOpen.Enabled = false;
-                    btnTrig.Enabled = true;
-                    btnStart.Enabled = true;
-                    btnStop.Enabled = false;
-                    grpCursor.Enabled = false;
+                    BtnClose.Enabled = true;
+                    BtnOpen.Enabled = false;
+                    BtnTrig.Enabled = true;
+                    BtnStart.Enabled = true;
+                    BtnStop.Enabled = false;
+                    GrpCursor.Enabled = false;
                     break;
                 case Serialstate.Continuous:
-                    btnClose.Enabled = false;
-                    btnOpen.Enabled = false;
-                    btnTrig.Enabled = false;
-                    btnStart.Enabled = false;
-                    btnStop.Enabled = true;
-                    grpCursor.Enabled = true;
+                    BtnClose.Enabled = false;
+                    BtnOpen.Enabled = false;
+                    BtnTrig.Enabled = false;
+                    BtnStart.Enabled = false;
+                    BtnStop.Enabled = true;
+                    GrpCursor.Enabled = true;
                     break;
             }
         }
 
         //when close button is clicked
-        private void btnClose_Click(object sender, EventArgs e) {
+        private void BtnClose_Click(object sender, EventArgs e) {
             try {
                 Globals.sworker.SetPortOpened(false, "");   //close the serial port
                 UpdateSerialState(Serialstate.Closed);
@@ -91,7 +92,7 @@ namespace MuscleControllerFrontend {
         }
 
         //when trigger button is clicked
-        private void btnTrig_Click(object sender, EventArgs e) {
+        private void BtnTrig_Click(object sender, EventArgs e) {
             try {
                 Globals.sworker.SetCount(1);    //set trigger count to 1
                 Thread.Sleep(50);   //wait data to be received
@@ -101,7 +102,7 @@ namespace MuscleControllerFrontend {
                         str += (Globals.dbuf.buf.First().Data[i]) + " ";
                     }
                     Globals.dbuf.buf.Clear();
-                    txtTest.Text = str; //display the result
+                    TxtTest.Text = str; //display the result
                 }
                 lock (Globals.dbuf.chbuf) {
                     Globals.dbuf.chbuf.Clear();
@@ -112,7 +113,7 @@ namespace MuscleControllerFrontend {
         }
 
         //when start button is clicked
-        private void btnStart_Click(object sender, EventArgs e) {
+        private void BtnStart_Click(object sender, EventArgs e) {
             if (Globals.state != Serialstate.Closed) {
                 Globals.sworker.SetCount(-1);   //set serial worker status to continuous
                 tmrUpdateChart.Enabled = true;
@@ -122,7 +123,7 @@ namespace MuscleControllerFrontend {
         }
 
         //when stop button is clicked
-        private void btnStop_Click(object sender, EventArgs e) {
+        private void BtnStop_Click(object sender, EventArgs e) {
             if (Globals.state != Serialstate.Closed) {
                 Globals.sworker.SetCount(0);    //stop the serial worker
                 tmrUpdateChart.Enabled = false;
@@ -132,33 +133,33 @@ namespace MuscleControllerFrontend {
         }
 
         //when update chart timer is triggered
-        private void tmrUpdateChart_Tick(object sender, EventArgs e) {
+        private void TmrUpdateChart_Tick(object sender, EventArgs e) {
             lock (Globals.dbuf.chbuf) { //lock the data buffer when accessing it to prevent bad things
                 foreach (var dat in Globals.dbuf.chbuf) {   //read all data records in the buffer
                     foreach (var name in new string[] { "AcX", "AcY", "AcZ" }) {
                         int index = name == "AcX" ? 0 : (name == "AcY" ? 1 : 2);
                         Globals.chfilters[index].Feed(dat.Data[index]);
-                        cht1.Series[name].Points.SuspendUpdates();
-                        cht1.Series[name].Points.Add(Globals.chfilters[index].Smooth);  //add points to charts
-                        if (cht1.Series[name].Points.Count > 60)
-                            cht1.Series[name].Points.RemoveAt(0);   //if a chart has more than 60 points, remove the first point
-                        cht1.Series[name].Points.ResumeUpdates();
+                        Cht1.Series[name].Points.SuspendUpdates();
+                        Cht1.Series[name].Points.Add(Globals.chfilters[index].Smooth);  //add points to charts
+                        if (Cht1.Series[name].Points.Count > 60)
+                            Cht1.Series[name].Points.RemoveAt(0);   //if a chart has more than 60 points, remove the first point
+                        Cht1.Series[name].Points.ResumeUpdates();
                     }
                     foreach (var name in new string[] { "GyX", "GyY", "GyZ" }) {
                         int index = name == "GyX" ? 3 : (name == "GyY" ? 4 : 5);
-                        cht2.Series[name].Points.SuspendUpdates();
-                        cht2.Series[name].Points.Add(dat.Data[index]);
-                        if (cht2.Series[name].Points.Count > 60)
-                            cht2.Series[name].Points.RemoveAt(0);
-                        cht2.Series[name].Points.ResumeUpdates();
+                        Cht2.Series[name].Points.SuspendUpdates();
+                        Cht2.Series[name].Points.Add(dat.Data[index]);
+                        if (Cht2.Series[name].Points.Count > 60)
+                            Cht2.Series[name].Points.RemoveAt(0);
+                        Cht2.Series[name].Points.ResumeUpdates();
                     }
                     foreach (var name in new string[] { "Ch1", "Ch2", "Ch3", "Ch4" }) {
                         int index = name == "Ch1" ? 6 : (name == "Ch2" ? 7 : (name == "Ch3" ? 8 : 9));
-                        cht3.Series[name].Points.SuspendUpdates();
-                        cht3.Series[name].Points.Add(dat.Data[index]);
-                        if (cht3.Series[name].Points.Count > 60)
-                            cht3.Series[name].Points.RemoveAt(0);
-                        cht3.Series[name].Points.ResumeUpdates();
+                        Cht3.Series[name].Points.SuspendUpdates();
+                        Cht3.Series[name].Points.Add(dat.Data[index]);
+                        if (Cht3.Series[name].Points.Count > 60)
+                            Cht3.Series[name].Points.RemoveAt(0);
+                        Cht3.Series[name].Points.ResumeUpdates();
                     }
                 }
                 Globals.dbuf.chbuf.Clear(); //clear the buffer
@@ -166,7 +167,7 @@ namespace MuscleControllerFrontend {
         }
 
         //when update cursor timer is triggered
-        private void tmrUpdateCursor_Tick(object sender, EventArgs e) {
+        private void TmrUpdateCursor_Tick(object sender, EventArgs e) {
             lock (Globals.dbuf.buf) { //lock the data buffer when accessing it to prevent bad things
                 short[] lastdat = new short[10];
                 for (int i = 0; i < 10; i++) {
@@ -228,7 +229,7 @@ namespace MuscleControllerFrontend {
         }
 
         //when reset button is clicked
-        private void btnXYReset_Click(object sender, EventArgs e) {
+        private void BtnXYReset_Click(object sender, EventArgs e) {
             //reset the XYZ bases
             Globals.cursordat.Xbase.X = 0.0;
             Globals.cursordat.Xbase.Y = -1.0;
@@ -249,20 +250,20 @@ namespace MuscleControllerFrontend {
         }
 
         private void UpdateCursorXYZbaseTextbox() {
-            txtXYBasis.Text = "Xbase = " + Globals.cursordat.Xbase.ToString() + "\r\nYbase = " + Globals.cursordat.Ybase.ToString() + "\r\nZbase = " + Globals.cursordat.Zbase.ToString();
+            TxtXYBasis.Text = "Xbase = " + Globals.cursordat.Xbase.ToString() + "\r\nYbase = " + Globals.cursordat.Ybase.ToString() + "\r\nZbase = " + Globals.cursordat.Zbase.ToString();
         }
 
         private void UpdateCursorXYSpeedTextbox(double xsp, double ysp, int outx, int outy) {
-            txtXYNow.Text = string.Format("Xsp = {0:+0.00;-0.00} Ysp = {1:+0.00;-0.00} dX = {2} dY = {3}", xsp, ysp, outx, outy);
+            TxtXYNow.Text = string.Format("Xsp = {0:+0.00;-0.00} Ysp = {1:+0.00;-0.00} dX = {2} dY = {3}", xsp, ysp, outx, outy);
         }
 
         private void UpdateSimChart() {
-            chtSim.Series["Cursor"].Points[0].XValue = Globals.cursordat.X;
-            chtSim.Series["Cursor"].Points[0].YValues[0] = Globals.cursordat.Y;
+            ChtSim.Series["Cursor"].Points[0].XValue = Globals.cursordat.X;
+            ChtSim.Series["Cursor"].Points[0].YValues[0] = Globals.cursordat.Y;
         }
 
         //when setxbase button is clicked
-        private void btnSetX_Click(object sender, EventArgs e) {
+        private void BtnSetX_Click(object sender, EventArgs e) {
             //calculate x base and z base (Zbase=Xbase x Ybase)
             Globals.cursordat.Xbase.X = Globals.lastrec.Data[0];
             Globals.cursordat.Xbase.Y = Globals.lastrec.Data[1];
@@ -273,7 +274,7 @@ namespace MuscleControllerFrontend {
         }
 
         //when setxbase button is clicked
-        private void btnSetY_Click(object sender, EventArgs e) {
+        private void BtnSetY_Click(object sender, EventArgs e) {
             //calculate y base and z base (Zbase=Xbase x Ybase)
             Globals.cursordat.Ybase.X = Globals.lastrec.Data[0];
             Globals.cursordat.Ybase.Y = Globals.lastrec.Data[1];
@@ -284,8 +285,8 @@ namespace MuscleControllerFrontend {
         }
 
         //when apply checkbox is changed
-        private void chkApply_CheckedChanged(object sender, EventArgs e) {
-            Globals.cursordat.Active = chkApply.Checked;    //update the status of cursor movement enabled setting
+        private void ChkApply_CheckedChanged(object sender, EventArgs e) {
+            Globals.cursordat.Active = ChkApply.Checked;    //update the status of cursor movement enabled setting
         }
     }
 }
