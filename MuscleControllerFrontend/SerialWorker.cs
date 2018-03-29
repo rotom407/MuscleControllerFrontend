@@ -25,6 +25,19 @@ namespace MuscleControllerFrontend {
             Timestamp = tsp;
             Success = succ;
         }
+
+        public override string ToString() {
+            string str = ((int)timestamp).ToString()+",";
+            const int V = 10;
+            for (int i = V-4; i < V; i++) {
+                str += data[i].ToString();
+                if (i != V - 1) {
+                    str += ",";
+                }
+            }
+            str += ";";
+            return str;
+        }
     }
 
     //class for data buffer
@@ -117,12 +130,11 @@ namespace MuscleControllerFrontend {
         }
         //to set the remaining trigger count
         public void SetCount(int count) => trigcount = count;
-        //to kill the process
+        //to kill the thread
         public void Kill() => running = false;
 
         private volatile int trigcount;
         private volatile bool running = true;
         public volatile SerialPort Serial1;
     }
-
 }

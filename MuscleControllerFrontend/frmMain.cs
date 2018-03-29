@@ -3,9 +3,12 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using System.Threading;
+using ZeroMQ;
 
 namespace MuscleControllerFrontend {
     public partial class FrmMain : Form {
+        private const string MMapPath = ".\\mmap.txt";
+
         public FrmMain() {
             InitializeComponent();
         }
@@ -13,6 +16,7 @@ namespace MuscleControllerFrontend {
         //when the form is loaded
         private void FrmMain_Load(object sender, EventArgs e) {
             Globals.sthread.Start();    //start the serial worker thread
+            Globals.ithread.Start();    //start the interop thread
             UpdateSerialState(Serialstate.Closed);    //set the serial state to closed
             UpdateCursorXYZbaseTextbox();
             for (int i = 0; i < 3; i++) {   //set the cutoff freqs of filters
@@ -26,11 +30,17 @@ namespace MuscleControllerFrontend {
             Cht2.ChartAreas[0].Axes[1].Minimum = -10000;
             Cht3.ChartAreas[0].Axes[1].Maximum = 1000;
             Cht3.ChartAreas[0].Axes[1].Minimum = 0;
+
+            //File.Create(MMapPath);
+            //MemoryMappedFile.CreateFromFile(MMapPath);
+            
+
         }
 
         //when the form is closed
         private void FrmMain_FormClosed(object sender, FormClosedEventArgs e) {
-            Globals.sworker.Kill(); //kill the serial worker process
+            Globals.sworker.Kill(); //kill the serial worker thread
+            Globals.iworker.Kill(); //kill the interop worker thread
         }
 
         //when Open button is clicked
@@ -287,6 +297,11 @@ namespace MuscleControllerFrontend {
         //when apply checkbox is changed
         private void ChkApply_CheckedChanged(object sender, EventArgs e) {
             Globals.cursordat.Active = ChkApply.Checked;    //update the status of cursor movement enabled setting
+        }
+
+        private void BtnTestInterop_Click(object sender, EventArgs e) {
+            Console.WriteLine("Hello");
+            MessageBox.Show(Console.Read().ToString());
         }
     }
 }

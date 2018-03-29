@@ -9,7 +9,9 @@ namespace MuscleControllerFrontend {
         public static volatile byte timestamp = 0;
         public static volatile DataBuffer dbuf = new DataBuffer();  //data buffer used by serial worker
         public static SerialWorker sworker = new SerialWorker();
+        public static InteropWorker iworker = new InteropWorker("PH");
         public static Thread sthread = new Thread(sworker.DoWork);
+        public static Thread ithread = new Thread(iworker.DoWork);
         public static CursorData cursordat = new CursorData();  //cursor data
         public static DataRecord lastrec = new DataRecord(0, true); //last (current) record of sensors
     }
