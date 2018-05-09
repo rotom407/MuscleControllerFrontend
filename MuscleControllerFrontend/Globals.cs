@@ -1,8 +1,25 @@
 ﻿using System.Threading;
+using WindowsInput;
+using WindowsInput.Native;
 
 namespace MuscleControllerFrontend {
+    public enum MainMode {
+        MMouse,
+        GEDemo
+    }
+    //0.995, 0.5, 0.7, 1000
+    public static class Config {
+        public static double[] filttrend = { 0.995, 0.999 }, filtdenoise = { 0.5, 0.1 }, filttilt = { 0.7, 0.3 }, filtcutoff = { 1000, 10000 }, filtemg = { 0.0, 0.3 }, filtemgcutoff = { 0, 20 };
+        public static int[] schmitthigh = { 150, 150 }, schmittlow = { 50, 50 };
+        public static Vector3D[,] defaultbase = { { new Vector3D(0, -1, 0), new Vector3D(0, 0, 1), new Vector3D(-1, 0, 0) }, { new Vector3D(0, 0, 1), new Vector3D(0, -1, 0), new Vector3D(1, 0, 0) } };
+        public static double gedemodeadzone = 20;
+        public static int gedemozoomstrength = 1;
+        public static int gedemozoomup = 70, gedemozoomdown = -40;
+    }
+
     //static class storing global objects
     public static class Globals {
+        public static MainMode mainMode = MainMode.MMouse;
         public static Serialstate state = Serialstate.Closed;
         public static Filters[] filters = new Filters[3];   //3 filters (for AcX AcY AcZ) used for cursor movements
         public static Filters[] chfilters = new Filters[3]; //3 filters (for AcX AcY AcZ) used for charts
@@ -14,35 +31,31 @@ namespace MuscleControllerFrontend {
         public static Thread ithread = new Thread(iworker.DoWork);
         public static CursorData cursordat = new CursorData();  //cursor data
         public static DataRecord lastrec = new DataRecord(0, true); //last (current) record of sensors
+        public static SchmittTrigger[] schmitt = new SchmittTrigger[4];
+        public static SchmittTrigger[] chschmitt = new SchmittTrigger[4];
+        public static LowpassFilterCutoffHighpass[] emgfilter = new LowpassFilterCutoffHighpass[4];
+        public static LowpassFilterCutoffHighpass[] chemgfilter = new LowpassFilterCutoffHighpass[4];
+        public static InputSimulator inputSim = new InputSimulator();
+        public static int gedemoxstate = 0;
+        public static int gedemoystate = 0;
+        public static int gedemozoompotential = 0;
     }
 
     //storing the position, velocity and other properties of the cursor
     public class CursorData {
-        //x, y, z base vectors of the user-defined coordinate system, zbase is calculated as the cross product of xbase and ybase
-        private Vector3D xbase = new Vector3D(0, -1, 0);
-        private Vector3D ybase = new Vector3D(0, 0, 1);
-        private Vector3D zbase = new Vector3D(-1, 0, 0);
-        private double speed = 0.005;   //cursor movement speed
-        private double x = 400.0;   //cursor position
-        private double y = 300.0;
-        private double xsp = 0.0;   //cursor speed
-        private double ysp = 0.0;
-        private double xremaining = 0.0;    //remaining fractional part after truncation (when passing x y values to Windows API) of x y values
-        private double yremaining = 0.0;
-        private bool active = false;
 
         //encapsulations
-        public Vector3D Xbase { get => xbase; set => xbase = value; }
-        public Vector3D Ybase { get => ybase; set => ybase = value; }
-        public Vector3D Zbase { get => zbase; set => zbase = value; }
-        public double Speed { get => speed; set => speed = value; }
-        public double X { get => x; set => x = value; }
-        public double Y { get => y; set => y = value; }
-        public double Xsp { get => xsp; set => xsp = value; }
-        public double Ysp { get => ysp; set => ysp = value; }
-        public double Xremaining { get => xremaining; set => xremaining = value; }
-        public double Yremaining { get => yremaining; set => yremaining = value; }
-        public bool Active { get => active; set => active = value; }
+        public Vector3D Xbase { get; set; } = new Vector3D(0, -1, 0);
+        public Vector3D Ybase { get; set; } = new Vector3D(0, 0, 1);
+        public Vector3D Zbase { get; set; } = new Vector3D(-1, 0, 0);
+        public double Speed { get; set; } = 0.005;
+        public double X { get; set; } = 400.0;
+        public double Y { get; set; } = 300.0;
+        public double Xsp { get; set; } = 0.0;
+        public double Ysp { get; set; } = 0.0;
+        public double Xremaining { get; set; } = 0.0;
+        public double Yremaining { get; set; } = 0.0;
+        public bool Active { get; set; } = false;
 
         //update cursor position with speed values and clamp the position ranges
         public void UpdateXY(int maxX, int maxY) {
@@ -61,20 +74,14 @@ namespace MuscleControllerFrontend {
 
     //filters class
     public class Filters {
-        private LowpassFilter trend;    //low pass filter with low cutoff frequency to get the trend from data
-        private LowpassFilter denoise;  //low pass filter with high cutoff freq to remove noise from data preserving sudden changes
-        private LowpassFilterCutoff tilt; //low pass filter with moderate cutoff freq and peak cutoff to remove sudden changes from data
-        private double smooth;  //=tilt-trend (effectively a band pass filter), represents tilt angle of the sensor
-        private double sudden;  //=denoise-tilt (effectively a band pass filter), represents sudden accelerations of the sensor (currently not used)
-        private bool reset = true;  //whether to reset the filters' memory in the next update
 
         //encapsulations
-        public LowpassFilter Trend { get => trend; set => trend = value; }
-        public LowpassFilter Denoise { get => denoise; set => denoise = value; }
-        public LowpassFilterCutoff Tilt { get => tilt; set => tilt = value; }
-        public double Smooth { get => smooth; set => smooth = value; }
-        public double Sudden { get => sudden; set => sudden = value; }
-        public bool Reset { get => reset; set => reset = value; }
+        public LowpassFilter Trend { get; set; }
+        public LowpassFilter Denoise { get; set; }
+        public LowpassFilterCutoff Tilt { get; set; }
+        public double Smooth { get; set; }
+        public double Sudden { get; set; }
+        public bool Reset { get; set; } = true;
 
         //constructor
         public Filters(double trendcutoff, double denoisecutoff, double tiltcutoff, double tiltpeakcutoff) {

@@ -4,6 +4,10 @@ using System.Linq;
 using System.Windows.Forms;
 using System.Threading;
 using ZeroMQ;
+using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using WindowsInput;
+using WindowsInput.Native;
 
 namespace MuscleControllerFrontend {
     public partial class FrmMain : Form {
@@ -13,6 +17,14 @@ namespace MuscleControllerFrontend {
             InitializeComponent();
         }
 
+        [DllImport("user32.dll", CharSet = CharSet.Auto, CallingConvention = CallingConvention.StdCall)]
+        public static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint cButtons, uint dwExtraInfo);
+        //Mouse actions
+        private const int MOUSEEVENTF_LEFTDOWN = 0x02;
+        private const int MOUSEEVENTF_LEFTUP = 0x04;
+        private const int MOUSEEVENTF_RIGHTDOWN = 0x08;
+        private const int MOUSEEVENTF_RIGHTUP = 0x10;
+
         //when the form is loaded
         private void FrmMain_Load(object sender, EventArgs e) {
             Globals.sthread.Start();    //start the serial worker thread
@@ -20,20 +32,29 @@ namespace MuscleControllerFrontend {
             UpdateSerialState(Serialstate.Closed);    //set the serial state to closed
             UpdateCursorXYZbaseTextbox();
             for (int i = 0; i < 3; i++) {   //set the cutoff freqs of filters
-                Globals.chfilters[i] = new Filters(0.995, 0.5, 0.7, 1000);
-                Globals.filters[i] = new Filters(0.995, 0.5, 0.7, 1000);
+                Globals.chfilters[i] = new Filters(Config.filttrend[0], Config.filtdenoise[0], Config.filttilt[0], Config.filtcutoff[0]);
+                Globals.filters[i] = new Filters(Config.filttrend[0], Config.filtdenoise[0], Config.filttilt[0], Config.filtcutoff[0]);
+            }
+            for (int i = 0; i < 4; i++) {   //set the cutoff freqs of filters
+                Globals.schmitt[i] = new SchmittTrigger(Config.schmitthigh[0], Config.schmittlow[0]);
+                Globals.chschmitt[i] = new SchmittTrigger(Config.schmitthigh[0], Config.schmittlow[0]);
+            }
+            for (int i = 0; i < 4; i++) {   //set the cutoff freqs of filters
+                Globals.emgfilter[i] = new LowpassFilterCutoffHighpass(Config.filtemg[0], Config.filtemgcutoff[0]);
+                Globals.chemgfilter[i] = new LowpassFilterCutoffHighpass(Config.filtemg[0], Config.filtemgcutoff[0]);
             }
             //set Y ranges of charts
             Cht1.ChartAreas[0].Axes[1].Maximum = 3000;
             Cht1.ChartAreas[0].Axes[1].Minimum = -3000;
             Cht2.ChartAreas[0].Axes[1].Maximum = 10000;
             Cht2.ChartAreas[0].Axes[1].Minimum = -10000;
-            Cht3.ChartAreas[0].Axes[1].Maximum = 1000;
-            Cht3.ChartAreas[0].Axes[1].Minimum = 0;
+            Cht3.ChartAreas[0].Axes[1].Maximum = 500;
+            Cht3.ChartAreas[0].Axes[1].Minimum = -500;
+
+            CmbMode.SelectedIndex = 0;
 
             //File.Create(MMapPath);
             //MemoryMappedFile.CreateFromFile(MMapPath);
-            
 
         }
 
@@ -70,7 +91,7 @@ namespace MuscleControllerFrontend {
                     BtnTrig.Enabled = false;
                     BtnStart.Enabled = false;
                     BtnStop.Enabled = false;
-                    GrpCursor.Enabled = false;
+                    GrpCursor.Enabled = true;
                     break;
                 case Serialstate.Single:
                     BtnClose.Enabled = true;
@@ -78,7 +99,7 @@ namespace MuscleControllerFrontend {
                     BtnTrig.Enabled = true;
                     BtnStart.Enabled = true;
                     BtnStop.Enabled = false;
-                    GrpCursor.Enabled = false;
+                    GrpCursor.Enabled = true;
                     break;
                 case Serialstate.Continuous:
                     BtnClose.Enabled = false;
@@ -165,8 +186,14 @@ namespace MuscleControllerFrontend {
                     }
                     foreach (var name in new string[] { "Ch1", "Ch2", "Ch3", "Ch4" }) {
                         int index = name == "Ch1" ? 6 : (name == "Ch2" ? 7 : (name == "Ch3" ? 8 : 9));
+                        Globals.chschmitt[index - 6].Feed(dat.Data[index]);
+                        if (name == "Ch4") {
+                            Globals.chemgfilter[index - 6].Feed(dat.Data[7]-dat.Data[6]);
+                        } else {
+                            Globals.chemgfilter[index - 6].Feed(dat.Data[index]);
+                        }
                         Cht3.Series[name].Points.SuspendUpdates();
-                        Cht3.Series[name].Points.Add(dat.Data[index]);
+                        Cht3.Series[name].Points.Add(Globals.chemgfilter[index-6].output);
                         if (Cht3.Series[name].Points.Count > 60)
                             Cht3.Series[name].Points.RemoveAt(0);
                         Cht3.Series[name].Points.ResumeUpdates();
@@ -178,6 +205,11 @@ namespace MuscleControllerFrontend {
 
         //when update cursor timer is triggered
         private void TmrUpdateCursor_Tick(object sender, EventArgs e) {
+            var chnclick = new List<SchmittTrigger.TriggerType>[4];
+            for (int i = 0; i < 4; i++) {
+                chnclick[i] = new List<SchmittTrigger.TriggerType>();
+                chnclick[i].Clear();
+            }
             lock (Globals.dbuf.buf) { //lock the data buffer when accessing it to prevent bad things
                 short[] lastdat = new short[10];
                 for (int i = 0; i < 10; i++) {
@@ -188,6 +220,25 @@ namespace MuscleControllerFrontend {
                         foreach (var name in new string[] { "AcX", "AcY", "AcZ" }) {
                             int index = name == "AcX" ? 0 : (name == "AcY" ? 1 : 2);
                             Globals.filters[index].Feed(dat.Data[index]);   //feed the filters with AcX AcY AcZ
+                        }
+                        for (int i = 6; i < 10; i++) {
+
+                            if (i == 9) {
+                                Globals.emgfilter[i - 6].Feed(dat.Data[7] - dat.Data[6]);
+                            } else {
+                                Globals.emgfilter[i - 6].Feed(dat.Data[i]);
+                            }
+
+                            SchmittTrigger.TriggerType r;
+                            r = Globals.schmitt[i - 6].Feed((int)Globals.emgfilter[i - 6].output);
+                            switch (r) {
+                                case SchmittTrigger.TriggerType.Rising:
+                                    chnclick[i - 6].Add(r);
+                                    break;
+                                case SchmittTrigger.TriggerType.Falling:
+                                    chnclick[i - 6].Add(r);
+                                    break;
+                            }
                         }
                         for (int i = 0; i < 3; i++) {
                             lastdat[i] = (short)Globals.filters[i].Smooth;  //get the output of filters
@@ -217,46 +268,199 @@ namespace MuscleControllerFrontend {
             } else {
                 tempysp = tempxsp = 0.0;
             }
-            //update XY speeds and record the difference
-            Globals.cursordat.Xsp = tempxsp;
-            Globals.cursordat.Ysp = tempysp;
-            double origx = Globals.cursordat.X, origy = Globals.cursordat.Y;
-            Globals.cursordat.UpdateXY();
-            double nowx = Globals.cursordat.X, nowy = Globals.cursordat.Y;
-            /*
-            Globals.cursordat.X = 400 + 20*tempxsp;
-            Globals.cursordat.Y = 300 + 20*tempysp;*/
-            //truncate the floating point numbers into integers, recording the remaining fractional parts
-            int outx, outy;
-            outx = (int)Math.Truncate(nowx - origx + Globals.cursordat.Xremaining);
-            outy = (int)Math.Truncate(nowy - origy + Globals.cursordat.Yremaining);
-            UpdateCursorXYSpeedTextbox(decompvec.X, decompvec.Y, outx, outy);
-            Globals.cursordat.Xremaining = nowx - origx + Globals.cursordat.Xremaining - outx;
-            Globals.cursordat.Yremaining = nowy - origy + Globals.cursordat.Yremaining - outy;
-            UpdateSimChart();   //update cursor simulation chart
-            if (Globals.cursordat.Active)
-                MoveCursor(outx, outy); //call Windows API to move the cursor if enabled
+
+
+            switch (Globals.mainMode) {
+                case MainMode.MMouse:
+                    //update XY speeds and record the difference
+                    Globals.cursordat.Xsp = tempxsp;
+                    Globals.cursordat.Ysp = tempysp;
+                    double origx = Globals.cursordat.X, origy = Globals.cursordat.Y;
+                    Globals.cursordat.UpdateXY();
+                    double nowx = Globals.cursordat.X, nowy = Globals.cursordat.Y;
+                    /*
+                    Globals.cursordat.X = 400 + 20*tempxsp;
+                    Globals.cursordat.Y = 300 + 20*tempysp;*/
+                    //truncate the floating point numbers into integers, recording the remaining fractional parts
+                    int outx, outy;
+                    outx = (int)Math.Truncate(nowx - origx + Globals.cursordat.Xremaining);
+                    outy = (int)Math.Truncate(nowy - origy + Globals.cursordat.Yremaining);
+                    UpdateCursorXYSpeedTextbox(decompvec.X, decompvec.Y, outx, outy);
+                    Globals.cursordat.Xremaining = nowx - origx + Globals.cursordat.Xremaining - outx;
+                    Globals.cursordat.Yremaining = nowy - origy + Globals.cursordat.Yremaining - outy;
+                    UpdateSimChart();   //update cursor simulation chart
+                    foreach (var i in chnclick[0]) {
+                        //if (i == SchmittTrigger.TriggerType.Rising);
+                        if (i == SchmittTrigger.TriggerType.Falling)
+                            ChtSim.Series["LClick"].Points.AddXY(Globals.cursordat.X, Globals.cursordat.Y);
+                    }
+                    foreach (var i in chnclick[1]) {
+                        //if (i == SchmittTrigger.TriggerType.Rising);
+                        if (i == SchmittTrigger.TriggerType.Falling)
+                            ChtSim.Series["RClick"].Points.AddXY(Globals.cursordat.X, Globals.cursordat.Y);
+                    }
+                    if (Globals.cursordat.Active) {
+                        MoveCursor(outx, outy); //call Windows API to move the cursor if enabled
+                                                /*foreach(var i in chnclick[0]) {
+                                                    if (i == SchmittTrigger.TriggerType.Rising)
+                                                        DoMouseClick(MOUSEEVENTF_LEFTDOWN);
+                                                    if (i == SchmittTrigger.TriggerType.Falling)
+                                                        DoMouseClick(MOUSEEVENTF_LEFTUP);
+                                                }*/
+                        foreach (var i in chnclick[2]) {
+                            if (i == SchmittTrigger.TriggerType.Rising)
+                                DoMouseClick(MOUSEEVENTF_LEFTDOWN);
+                            if (i == SchmittTrigger.TriggerType.Falling)
+                                DoMouseClick(MOUSEEVENTF_LEFTUP);
+                        }
+                    }
+                    break;
+                case MainMode.GEDemo:
+                    ChtSim.Series["Cursor"].Points[0].XValue = 400 + 10 * tempxsp;
+                    ChtSim.Series["Cursor"].Points[0].YValues[0] = 300 + 10 * tempysp;
+                    if (Globals.cursordat.Active) {
+                        if (tempxsp > Config.gedemodeadzone) {
+                            switch (Globals.gedemoxstate) {
+                                case 0:
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.RIGHT);
+                                    break;
+                                case -1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.LEFT);
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.RIGHT);
+                                    break;
+                            }
+                            Globals.gedemoxstate = 1;
+                        } else if (tempxsp < -Config.gedemodeadzone) {
+                            switch (Globals.gedemoxstate) {
+                                case 0:
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.LEFT);
+                                    break;
+                                case 1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.RIGHT);
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.LEFT);
+                                    break;
+                            }
+                            Globals.gedemoxstate = -1;
+                        } else {
+                            switch (Globals.gedemoxstate) {
+                                case -1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.LEFT);
+                                    break;
+                                case 1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.RIGHT);
+                                    break;
+                            }
+                            Globals.gedemoxstate = 0;
+                        }
+
+                        if (tempysp > Config.gedemodeadzone) {
+                            switch (Globals.gedemoystate) {
+                                case 0:
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.UP);
+                                    break;
+                                case -1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.DOWN);
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.UP);
+                                    break;
+                            }
+                            Globals.gedemoystate = 1;
+                        } else if (tempysp < -Config.gedemodeadzone) {
+                            switch (Globals.gedemoystate) {
+                                case 0:
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.DOWN);
+                                    break;
+                                case 1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.UP);
+                                    Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.DOWN);
+                                    break;
+                            }
+                            Globals.gedemoystate = -1;
+                        } else {
+                            switch (Globals.gedemoystate) {
+                                case -1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.DOWN);
+                                    break;
+                                case 1:
+                                    Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.UP);
+                                    break;
+                            }
+                            Globals.gedemoystate = 0;
+                        }
+
+                        int origpotential=Globals.gedemozoompotential;
+                        if (Globals.emgfilter[3].output > Config.gedemozoomup) {
+                            Globals.gedemozoompotential += Config.gedemozoomstrength;
+                        }
+                        if (Globals.emgfilter[3].output < Config.gedemozoomdown) {
+                            Globals.gedemozoompotential -= Config.gedemozoomstrength;
+                        }
+                        if (origpotential == 0) {
+                            if (Globals.gedemozoompotential > 0) {
+                                Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.PRIOR);
+                            }
+                            if (Globals.gedemozoompotential < 0) {
+                                Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.NEXT);
+                            }
+                        }else if (origpotential < 0) {
+                            if (Globals.gedemozoompotential == 0) {
+                                Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.NEXT);
+                            }
+                            if (Globals.gedemozoompotential > 0) {
+                                Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.NEXT);
+                                Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.PRIOR);
+                            }
+                        } else if (origpotential > 0) {
+                            if (Globals.gedemozoompotential == 0) {
+                                Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.PRIOR);
+                            }
+                            if (Globals.gedemozoompotential < 0) {
+                                Globals.inputSim.Keyboard.KeyUp(VirtualKeyCode.PRIOR);
+                                Globals.inputSim.Keyboard.KeyDown(VirtualKeyCode.NEXT);
+                            }
+                        }
+                        if (Globals.gedemozoompotential > 0)
+                            Globals.gedemozoompotential--;
+                        if (Globals.gedemozoompotential < 0)
+                            Globals.gedemozoompotential++;
+                    }
+                    break;
+            }
+
+        }
+
+        private void Resetbases(MainMode mode) {
+            switch (mode) {
+                case MainMode.MMouse:
+                    Globals.cursordat.Xbase = Config.defaultbase[0, 0];
+                    Globals.cursordat.Ybase = Config.defaultbase[0, 1];
+                    Globals.cursordat.Zbase = Config.defaultbase[0, 2];
+                    break;
+                case MainMode.GEDemo:
+                    Globals.cursordat.Xbase = Config.defaultbase[1, 0];
+                    Globals.cursordat.Ybase = Config.defaultbase[1, 1];
+                    Globals.cursordat.Zbase = Config.defaultbase[1, 2];
+                    break;
+            }
+            UpdateCursorXYZbaseTextbox();
         }
 
         //when reset button is clicked
         private void BtnXYReset_Click(object sender, EventArgs e) {
             //reset the XYZ bases
-            Globals.cursordat.Xbase.X = 0.0;
-            Globals.cursordat.Xbase.Y = -1.0;
-            Globals.cursordat.Xbase.Z = 0.0;
-            Globals.cursordat.Ybase.X = 0.0;
-            Globals.cursordat.Ybase.Y = 0.0;
-            Globals.cursordat.Ybase.Z = 1.0;
-            Globals.cursordat.Zbase.X = -1.0;
-            Globals.cursordat.Zbase.Y = 0.0;
-            Globals.cursordat.Zbase.Z = 0.0;
-            UpdateCursorXYZbaseTextbox();
+            Resetbases(Globals.mainMode);
         }
 
         //call Windows API to move the cursor
         private void MoveCursor(int dx, int dy) {
             Cursor = new System.Windows.Forms.Cursor(System.Windows.Forms.Cursor.Current.Handle);
             System.Windows.Forms.Cursor.Position = new Point(System.Windows.Forms.Cursor.Position.X + dx, System.Windows.Forms.Cursor.Position.Y + dy);
+        }
+
+        public void DoMouseClick(uint action) {
+            //Call the imported function with the cursor's current position
+            uint X = (uint)Cursor.Position.X;
+            uint Y = (uint)Cursor.Position.Y;
+            mouse_event(action, X, Y, 0, 0);
         }
 
         private void UpdateCursorXYZbaseTextbox() {
@@ -302,6 +506,79 @@ namespace MuscleControllerFrontend {
         private void BtnTestInterop_Click(object sender, EventArgs e) {
             Console.WriteLine("Hello");
             MessageBox.Show(Console.Read().ToString());
+        }
+
+        private void CmbChn_SelectedIndexChanged(object sender, EventArgs e) {
+            try {
+                TxtStHi.Text = Globals.schmitt[CmbChn.SelectedIndex].up.ToString();
+                TxtStLo.Text = Globals.schmitt[CmbChn.SelectedIndex].down.ToString();
+            } catch {
+
+            }
+        }
+
+        private void TxtStHi_TextChanged(object sender, EventArgs e) {
+            try {
+                if (TxtStHi.Text != "") {
+                    Globals.schmitt[CmbChn.SelectedIndex].up = Convert.ToInt32(TxtStHi.Text);
+                    Globals.chschmitt[CmbChn.SelectedIndex].up = Convert.ToInt32(TxtStHi.Text);
+                }
+            } catch {
+
+            }
+        }
+
+        private void TxtStLo_TextChanged(object sender, EventArgs e) {
+            try {
+                if (TxtStLo.Text != "") {
+                    Globals.schmitt[CmbChn.SelectedIndex].down = Convert.ToInt32(TxtStLo.Text);
+                    Globals.chschmitt[CmbChn.SelectedIndex].down = Convert.ToInt32(TxtStLo.Text);
+                }
+            } catch {
+
+            }
+        }
+
+        private void CmbMode_SelectedIndexChanged(object sender, EventArgs e) {
+            foreach (var filt in Globals.filters) {
+                filt.Reset = true;
+                filt.Trend.alpha = Config.filttrend[CmbMode.SelectedIndex];
+                filt.Denoise.alpha = Config.filtdenoise[CmbMode.SelectedIndex];
+                filt.Tilt.alpha = Config.filttilt[CmbMode.SelectedIndex];
+                filt.Tilt.cutoff = Config.filtcutoff[CmbMode.SelectedIndex];
+            }
+            foreach (var filt in Globals.chfilters) {
+                filt.Reset = true;
+                filt.Trend.alpha = Config.filttrend[CmbMode.SelectedIndex];
+                filt.Denoise.alpha = Config.filtdenoise[CmbMode.SelectedIndex];
+                filt.Tilt.alpha = Config.filttilt[CmbMode.SelectedIndex];
+                filt.Tilt.cutoff = Config.filtcutoff[CmbMode.SelectedIndex];
+            }
+            foreach (var filt in Globals.emgfilter) {
+                filt.alpha = Config.filtemg[CmbMode.SelectedIndex];
+                filt.cutoff = Config.filtemgcutoff[CmbMode.SelectedIndex];
+            }
+            foreach (var filt in Globals.chemgfilter) {
+                filt.alpha = Config.filtemg[CmbMode.SelectedIndex];
+                filt.cutoff = Config.filtemgcutoff[CmbMode.SelectedIndex];
+            }
+            foreach (var trigger in Globals.schmitt) {
+                trigger.up = Config.schmitthigh[CmbMode.SelectedIndex];
+                trigger.down = Config.schmittlow[CmbMode.SelectedIndex];
+            }
+            foreach (var trigger in Globals.chschmitt) {
+                trigger.up = Config.schmitthigh[CmbMode.SelectedIndex];
+                trigger.down = Config.schmittlow[CmbMode.SelectedIndex];
+            }
+            switch (CmbMode.SelectedIndex) {
+                case 0:
+                    Globals.mainMode = MainMode.MMouse;
+                    break;
+                case 1:
+                    Globals.mainMode = MainMode.GEDemo;
+                    break;
+            }
+            Resetbases(Globals.mainMode);
         }
     }
 }

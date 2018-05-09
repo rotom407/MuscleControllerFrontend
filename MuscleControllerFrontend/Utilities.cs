@@ -89,4 +89,50 @@ namespace MuscleControllerFrontend {
             return output;
         }
     }
+
+    //lowpass filter with peak high pass cutoff (if (incoming input - previous output) > peak cutoff, the filter will use a far lower cutoff frequency)
+    public class LowpassFilterCutoffHighpass {
+        public double alpha, cutoff;
+        public double output = 0.0;
+        //constructor
+        public LowpassFilterCutoffHighpass(double alp, double cut) {
+            alpha = alp;
+            cutoff = cut;
+        }
+        //feed the filter with data
+        public double Feed(double input) {
+            if (Math.Abs(input - output) > cutoff)
+                output = alpha * output + (1.0 - alpha) * input;
+            else
+                output = Math.Pow(alpha, 0.2) * output + (1.0 - Math.Pow(alpha, 0.2)) * input;
+            return output;
+        }
+    }
+
+    public class SchmittTrigger {
+        public enum TriggerType {
+            Rising,
+            Falling,
+            Rest
+        };
+        public int up, down;
+        bool res=false;
+        public SchmittTrigger(int up_, int down_) {
+            up = up_;down = down_;
+        }
+        public TriggerType Feed(int input) {
+            if (res == false) {
+                if (input > up) {
+                    res = true;
+                    return TriggerType.Rising;
+                }
+            } else {
+                if (input < down) {
+                    res = false;
+                    return TriggerType.Falling;
+                }
+            }
+            return TriggerType.Rest;
+        }
+    }
 }
